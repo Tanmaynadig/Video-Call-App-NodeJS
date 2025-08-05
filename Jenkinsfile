@@ -1,11 +1,10 @@
 pipeline {
-    // Define a new agent. The pipeline will run inside a Node.js Docker container.
+    // This agent block tells Jenkins to run the pipeline inside a Docker container
     agent {
         docker {
             image 'node:18-slim'
-            // This runs the container as the 'root' user to allow installing software.
-            // It also mounts the Docker socket from your computer.
-            args '-u root:root -v /var/run/docker.sock:/var/run/docker.sock'
+            // This runs the container as the 'root' user to allow installing software
+            args '-u root:root'
         }
     }
 
@@ -15,11 +14,10 @@ pipeline {
     }
 
     stages {
-        // NEW STAGE: Install the Docker command-line tool
-        stage('Install Docker') {
+        // NEW STAGE: Install the Docker command-line tool inside our agent
+        stage('Install Docker Client') {
             steps {
                 echo 'Installing Docker client...'
-                // This command installs the 'docker' software inside our container
                 sh 'apt-get update && apt-get install -y docker.io'
             }
         }
@@ -38,19 +36,18 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Build & Push to Docker Hub') {
             steps {
-                echo "Building the Docker image with tag: ${dockerTag}"
-                sh "docker build -t ${env.dockerRepo}:${dockerTag} ."
-            }
-        }
-
-        stage('Push to Docker Hub') {
-            steps {
-                echo "Pushing ${env.dockerRepo}:${dockerTag} to Docker Hub..."
+                echo "Building and pushing image: ${env.dockerRepo}:${dockerTag}"
+                // Use the credentials we stored in Jenkins
                 withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    // Login to Docker Hub
                     sh "docker login -u '${env.DOCKER_USER}' -p '${env.DOCKER_PASS}'"
+                    // Build the image
+                    sh "docker build -t ${env.dockerRepo}:${dockerTag} ."
+                    // Push the uniquely tagged image
                     sh "docker push ${env.dockerRepo}:${dockerTag}"
+                    // Also tag this build as 'latest' and push it
                     sh "docker tag ${env.dockerRepo}:${dockerTag} ${env.dockerRepo}:latest"
                     sh "docker push ${env.dockerRepo}:latest"
                 }
