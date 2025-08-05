@@ -1,11 +1,9 @@
 pipeline {
-    // This agent block tells Jenkins to run the pipeline inside a Docker container
-    agent {
-        docker {
-            image 'node:18-slim'
-            // This runs the container as the 'root' user to allow installing software
-            args '-u root:root'
-        }
+    // Tell Jenkins which tools to prepare for this pipeline
+    agent any
+    tools {
+        // The name 'NodeJS-18' must match the name you gave it in the Tools configuration
+        nodejs 'NodeJs'
     }
 
     environment {
@@ -14,21 +12,15 @@ pipeline {
     }
 
     stages {
-        // NEW STAGE: Install the Docker command-line tool inside our agent
-        stage('Install Docker Client') {
-            steps {
-                echo 'Installing Docker client...'
-                sh 'apt-get update && apt-get install -y docker.io'
-            }
-        }
-
         stage('Install Dependencies') {
             steps {
                 echo 'Installing Node.js dependencies...'
+                // Now the 'npm' command will be available
                 sh 'npm install'
             }
         }
 
+        // ... rest of your stages ...
         stage('Test') {
             steps {
                 echo 'Running tests...'
@@ -36,18 +28,19 @@ pipeline {
             }
         }
 
-        stage('Build & Push to Docker Hub') {
+        stage('Build Docker Image') {
             steps {
-                echo "Building and pushing image: ${env.dockerRepo}:${dockerTag}"
-                // Use the credentials we stored in Jenkins
+                echo "Building the Docker image with tag: ${dockerTag}"
+                sh "docker build -t ${env.dockerRepo}:${dockerTag} ."
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                echo "Pushing ${env.dockerRepo}:${dockerTag} to Docker Hub..."
                 withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    // Login to Docker Hub
                     sh "docker login -u '${env.DOCKER_USER}' -p '${env.DOCKER_PASS}'"
-                    // Build the image
-                    sh "docker build -t ${env.dockerRepo}:${dockerTag} ."
-                    // Push the uniquely tagged image
                     sh "docker push ${env.dockerRepo}:${dockerTag}"
-                    // Also tag this build as 'latest' and push it
                     sh "docker tag ${env.dockerRepo}:${dockerTag} ${env.dockerRepo}:latest"
                     sh "docker push ${env.dockerRepo}:latest"
                 }
