@@ -30,3 +30,13 @@ You can create a free xirsys account and use their free ice server. You can repl
 
 # Alternative
 If you prefer to use PHP Web socket (Ratchet) instead of socket.io and NodeJS, check out the PHP version [here](https://github.com/amirsanni/conference-call-ratchet).
+
+
+# 1. Stage the change
+git add .
+
+# 2. Commit the change
+git commit -m "test: Trigger Jenkins build"
+
+# 3. Push the new commit to GitHub
+git push origin main
