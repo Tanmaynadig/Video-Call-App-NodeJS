@@ -1,30 +1,38 @@
 pipeline {
-    // This pipeline will run on the main Jenkins agent
+    // Run on any available agent
     agent any
 
-    environment {
-        // Define the Docker Hub repository name
-        DOCKER_REPO = 'tanmaynadig/video-call-app'
-    }
-
     stages {
-        stage('Build and Push Docker Image') {
+        // This stage prepares the workspace and checks out the code
+        stage('Preparation') {
             steps {
-                // This 'script' block allows us to use more advanced logic
+                // This is a crucial step: it cleans the workspace of any old files
+                // or corrupted directories before starting the build.
+                cleanWs()
+
+                // Explicitly check out the code from the configured SCM (Git)
+                echo 'Checking out source code...'
+                checkout scm
+                echo 'Checkout complete.'
+            }
+        }
+
+        // This stage builds and pushes the Docker image
+        stage('Build and Push') {
+            steps {
+                // The 'script' block allows us to use the docker commands
                 script {
-                    // Step 1: Build the Docker image using the Dockerfile in our repository.
-                    // Jenkins will automatically tag it with the repository name and build number.
                     echo "Building Docker image..."
-                    def customImage = docker.build(DOCKER_REPO)
+                    // Build the image from the Dockerfile in the current directory
+                    def customImage = docker.build('tanmaynadig/video-call-app')
 
-                    // Step 2: Use the credentials stored in Jenkins to log in to a Docker registry
+                    // Securely log in to Docker Hub and push the image
                     docker.withRegistry('https://registry.hub.docker.com', 'dockerhub-credentials') {
-
-                        // Step 3: Push the image with a unique tag (e.g., 'video-call-app:15')
+                        // Push the image with a unique tag (e.g., 'video-call-app:15')
                         echo "Pushing image with tag: ${env.BUILD_NUMBER}"
                         customImage.push("${env.BUILD_NUMBER}")
 
-                        // Step 4: Also push the 'latest' tag
+                        // Also push the 'latest' tag
                         echo "Pushing image with tag: latest"
                         customImage.push('latest')
                     }
