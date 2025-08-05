@@ -1,9 +1,12 @@
 pipeline {
-    // Tell Jenkins which tools to prepare for this pipeline
-    agent any
-    tools {
-        // The name 'NodeJS-18' must match the name you gave it in the Tools configuration
-        nodejs 'NodeJs'
+    // Define a new agent. The pipeline will run inside a Node.js Docker container.
+    agent {
+        docker {
+            image 'node:18-slim'
+            // This runs the container as the 'root' user to allow installing software.
+            // It also mounts the Docker socket from your computer.
+            args '-u root:root -v /var/run/docker.sock:/var/run/docker.sock'
+        }
     }
 
     environment {
@@ -12,15 +15,22 @@ pipeline {
     }
 
     stages {
+        // NEW STAGE: Install the Docker command-line tool
+        stage('Install Docker') {
+            steps {
+                echo 'Installing Docker client...'
+                // This command installs the 'docker' software inside our container
+                sh 'apt-get update && apt-get install -y docker.io'
+            }
+        }
+
         stage('Install Dependencies') {
             steps {
                 echo 'Installing Node.js dependencies...'
-                // Now the 'npm' command will be available
                 sh 'npm install'
             }
         }
 
-        // ... rest of your stages ...
         stage('Test') {
             steps {
                 echo 'Running tests...'
