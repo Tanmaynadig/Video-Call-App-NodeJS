@@ -3,7 +3,7 @@ pipeline {
     agent any
     tools {
         // The name 'NodeJS-18' must match the name you gave it in the Tools configuration
-        nodejs 'NodeJS'
+        nodejs 'NodeJs'
     }
 
     environment {
