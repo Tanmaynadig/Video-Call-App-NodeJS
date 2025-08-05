@@ -1,52 +1,40 @@
 pipeline {
+    // This pipeline will run on the main Jenkins agent
     agent any
 
-    tools {
-        // Use the NodeJS tool you configured in Jenkins
-        nodejs 'NodeJs'
-    }
-
     environment {
-        dockerRepo = 'tanmaynadig/video-call-app'
-        dockerTag  = "build-${env.BUILD_NUMBER}"
+        // Define the Docker Hub repository name
+        DOCKER_REPO = 'tanmaynadig/video-call-app'
     }
 
     stages {
-        // NEW STAGE: Install the Docker command-line tool
-        stage('Install Docker Client') {
+        stage('Build and Push Docker Image') {
             steps {
-                echo 'Installing Docker client...'
-                // This command installs the 'docker' software
-                sh 'apt-get update && apt-get install -y docker.io'
-            }
-        }
+                // This 'script' block allows us to use more advanced logic
+                script {
+                    // Step 1: Build the Docker image using the Dockerfile in our repository.
+                    // Jenkins will automatically tag it with the repository name and build number.
+                    echo "Building Docker image..."
+                    def customImage = docker.build(DOCKER_REPO)
 
-        stage('Install Dependencies') {
-            steps {
-                echo 'Installing Node.js dependencies...'
-                sh 'npm install'
-            }
-        }
+                    // Step 2: Use the credentials stored in Jenkins to log in to a Docker registry
+                    docker.withRegistry('https://registry.hub.docker.com', 'dockerhub-credentials') {
 
-        stage('Build & Push Image') {
-            steps {
-                echo "Building and pushing image: ${env.dockerRepo}:${dockerTag}"
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    // Login, Build, Tag, and Push
-                    sh "docker login -u '${env.DOCKER_USER}' -p '${env.DOCKER_PASS}'"
-                    sh "docker build -t ${env.dockerRepo}:${dockerTag} ."
-                    sh "docker push ${env.dockerRepo}:${dockerTag}"
-                    sh "docker tag ${env.dockerRepo}:${dockerTag} ${env.dockerRepo}:latest"
-                    sh "docker push ${env.dockerRepo}:latest"
+                        // Step 3: Push the image with a unique tag (e.g., 'video-call-app:15')
+                        echo "Pushing image with tag: ${env.BUILD_NUMBER}"
+                        customImage.push("${env.BUILD_NUMBER}")
+
+                        // Step 4: Also push the 'latest' tag
+                        echo "Pushing image with tag: latest"
+                        customImage.push('latest')
+                    }
                 }
             }
         }
     }
-
     post {
         always {
-            echo 'Pipeline finished. Logging out of Docker Hub...'
-            sh 'docker logout'
+            echo 'Pipeline finished.'
         }
     }
 }
