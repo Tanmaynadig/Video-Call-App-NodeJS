@@ -2,47 +2,58 @@ pipeline {
     // Run on any available agent
     agent any
 
-    stages {
-        // This stage prepares the workspace and checks out the code
-        stage('Preparation') {
-            steps {
-                // This is a crucial step: it cleans the workspace of any old files
-                // or corrupted directories before starting the build.
-                cleanWs()
+    // Use the NodeJS tool configured in Jenkins
+    tools {
+        nodejs 'NodeJs'
+    }
 
-                // Explicitly check out the code from the configured SCM (Git)
-                echo 'Checking out source code...'
-                checkout scm
-                echo 'Checkout complete.'
+    stages {
+        // STAGE 1: Manually check out the code
+        stage('Checkout Code') {
+            steps {
+                // Clean the workspace and clone the repository
+                cleanWs()
+                git url: 'https://github.com/Tanmaynadig/Video-Call-App-NodeJS.git', branch: 'main'
             }
         }
 
-        // This stage builds and pushes the Docker image
-        stage('Build and Push') {
+        // STAGE 2: Install the Docker command-line tool
+        stage('Install Docker Client') {
             steps {
-                // The 'script' block allows us to use the docker commands
-                script {
-                    echo "Building Docker image..."
-                    // Build the image from the Dockerfile in the current directory
-                    def customImage = docker.build('tanmaynadig/video-call-app')
+                echo 'Installing Docker client...'
+                sh 'apt-get update && apt-get install -y docker.io'
+            }
+        }
 
-                    // Securely log in to Docker Hub and push the image
-                    docker.withRegistry('https://registry.hub.docker.com', 'dockerhub-credentials') {
-                        // Push the image with a unique tag (e.g., 'video-call-app:15')
-                        echo "Pushing image with tag: ${env.BUILD_NUMBER}"
-                        customImage.push("${env.BUILD_NUMBER}")
+        // STAGE 3: Install Node.js dependencies
+        stage('Install Dependencies') {
+            steps {
+                echo 'Installing Node.js dependencies...'
+                sh 'npm install'
+            }
+        }
 
-                        // Also push the 'latest' tag
-                        echo "Pushing image with tag: latest"
-                        customImage.push('latest')
-                    }
+        // STAGE 4: Build and Push the Docker Image
+        stage('Build & Push Image') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    // Define the image name inside the step
+                    def imageName = "tanmaynadig/video-call-app"
+                    
+                    // Login, Build, Tag, and Push
+                    sh "docker login -u '${DOCKER_USER}' -p '${DOCKER_PASS}'"
+                    sh "docker build -t ${imageName}:${env.BUILD_NUMBER} ."
+                    sh "docker push ${imageName}:${env.BUILD_NUMBER}"
+                    sh "docker tag ${imageName}:${env.BUILD_NUMBER} ${imageName}:latest"
+                    sh "docker push ${imageName}:latest"
                 }
             }
         }
     }
     post {
         always {
-            echo 'Pipeline finished.'
+            echo 'Pipeline finished. Logging out of Docker Hub...'
+            sh 'docker logout'
         }
     }
 }
